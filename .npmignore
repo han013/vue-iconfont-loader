@@ -1,0 +1,24 @@
+# 源代码（构建后的 dist 目录会被发布）
+src/
+
+# 示例
+example/
+
+# 配置文件
+vite.config.js
+iconfont.config.example.js
+
+# 脚本（用户不需要）
+scripts/
+
+# 开发文件
+node_modules/
+*.log
+.DS_Store
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore
+

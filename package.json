@@ -1,0 +1,42 @@
+{
+  "name": "vue-iconfont-loader",
+  "version": "1.0.0",
+  "description": "Vue插件：开发环境在线引入iconfont样式，生产环境自动下载打包",
+  "main": "dist/vue-iconfont-loader.umd.js",
+  "module": "dist/vue-iconfont-loader.es.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/vue-iconfont-loader.es.js",
+      "require": "./dist/vue-iconfont-loader.umd.js"
+    },
+    "./vite": "./src/vite-plugin.js"
+  },
+  "files": [
+    "dist",
+    "src/vite-plugin.js"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "vue",
+    "iconfont",
+    "icon",
+    "aliyun",
+    "css-loader"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "vue": "^3.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "axios": "^1.6.0",
+    "vite": "^5.0.0",
+    "vue": "^3.3.0"
+  }
+}
