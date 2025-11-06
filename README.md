@@ -9,6 +9,7 @@
 
 ✨ 自动环境识别（开发/生产）  
 📦 生产环境自动下载并打包 CSS  
+🔤 **自动下载字体文件到本地**  
 🚀 开发环境直接引用在线资源  
 🎯 支持阿里云 iconfont  
 ⚙️ 灵活的配置方式  
@@ -116,7 +117,16 @@ VueIconfontPlugin({
   url: '//at.alicdn.com/t/c_xxxxxx.css',
   
   // 下载失败时是否抛出错误（可选，默认：true）
-  failOnError: true
+  failOnError: true,
+  
+  // 是否下载字体文件到本地（可选，默认：true）
+  downloadFonts: true,
+  
+  // 字体文件输出目录（可选，默认：'public/fonts'）
+  fontOutputDir: 'public/fonts',
+  
+  // 字体文件的公共路径（可选，默认：'/fonts/'）
+  fontPublicPath: '/fonts/'
 })
 ```
 
@@ -156,9 +166,31 @@ app.use(VueIconfontLoader, {
 ### 生产环境（production）
 
 1. 在执行 `npm run build` 时，Vite 插件自动下载 CSS 文件
-2. 通过 Vite 的 `define` 功能将 CSS 内容注入到代码中
-3. 打包时将样式内容一起打包进 bundle（替换 `__ICONFONT_CSS__` 变量）
-4. Vue 插件在运行时通过 `<style>` 标签注入样式到页面
+2. **自动下载字体文件（woff2, woff, ttf 等）到本地 `public/fonts` 目录**
+3. **自动替换 CSS 中的字体 URL 为本地路径**
+4. 通过 Vite 的 `define` 功能将处理后的 CSS 内容注入到代码中
+5. 打包时将样式内容一起打包进 bundle（替换 `__ICONFONT_CSS__` 变量）
+6. Vue 插件在运行时通过 `<style>` 标签注入样式到页面
+
+**字体文件下载示例：**
+```
+在线 URL: //at.alicdn.com/t/c/font_5044312_xxxx.woff2
+      ↓ 下载并替换
+本地路径: /fonts/iconfont-abc12345.woff2
+```
+
+### 重要说明
+
+⚠️ **注意：如果你是这个库的使用者（而不是开发者）**
+
+- **必须**在你的项目的 `vite.config.js` 中配置 `VueIconfontPlugin`
+- **必须**在你的项目的 `main.js` 中注册 Vue 插件
+- 只有正确配置了 Vite 插件，打包时才会自动下载样式到本地
+
+如果你发现打包时没有下载样式，请检查：
+1. 是否在 `vite.config.js` 中添加了 `VueIconfontPlugin`
+2. 是否配置了正确的 iconfont URL
+3. 执行 `npm run build` 时是否看到 `[vite-plugin-iconfont]` 的日志输出
 
 ## 构建
 
@@ -239,9 +271,11 @@ this.$iconfont.reload();
 ## 注意事项
 
 1. **URL 格式**：支持 `//at.alicdn.com/...` 和 `https://at.alicdn.com/...` 格式
-2. **打包大小**：生产环境会将 CSS 打包进 bundle，请注意控制图标数量
+2. **打包大小**：生产环境会将 CSS 打包进 bundle，字体文件会保存到 `public/fonts` 目录
 3. **缓存问题**：iconfont 更新后，记得更新 URL 中的版本号
-4. **网络环境**：开发环境需要能访问阿里云 CDN
+4. **网络环境**：开发环境需要能访问阿里云 CDN，构建时也需要网络下载字体文件
+5. **字体文件**：默认会下载 woff2、woff、ttf 等格式，确保 `public/fonts` 目录可写
+6. **部署**：确保 `public` 目录下的字体文件被正确部署到服务器
 
 ## 开发
 

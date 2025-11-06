@@ -26,10 +26,8 @@ export default defineConfig({
         }
       }
     }
-  },
-  define: {
-    // 避免在构建时替换 __ICONFONT_CSS__
-    __ICONFONT_CSS__: '__ICONFONT_CSS__'
   }
+  // 不要在库构建时定义 __ICONFONT_CSS__，
+  // 让它在使用者的项目中通过 vite-plugin-iconfont 来定义
 });
 

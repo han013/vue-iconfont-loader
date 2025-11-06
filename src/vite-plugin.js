@@ -2,11 +2,12 @@
  * Vite 插件：在生产环境构建时自动下载 iconfont CSS
  */
 
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import https from 'https';
 import http from 'http';
 import { createRequire } from 'module';
+import crypto from 'crypto';
 
 // 创建 require 函数以支持动态导入配置文件
 const require = createRequire(import.meta.url);
@@ -42,7 +43,7 @@ function getConfigFromFile(root) {
 }
 
 /**
- * 下载文件
+ * 下载文本文件
  */
 function downloadFile(url) {
   return new Promise((resolve, reject) => {
@@ -80,6 +81,44 @@ function downloadFile(url) {
 }
 
 /**
+ * 下载二进制文件
+ */
+function downloadBinaryFile(url) {
+  return new Promise((resolve, reject) => {
+    // 处理 // 开头的 URL
+    if (url.startsWith('//')) {
+      url = 'https:' + url;
+    }
+
+    const client = url.startsWith('https') ? https : http;
+
+    client.get(url, (res) => {
+      if (res.statusCode === 301 || res.statusCode === 302) {
+        // 处理重定向
+        downloadBinaryFile(res.headers.location).then(resolve).catch(reject);
+        return;
+      }
+
+      if (res.statusCode !== 200) {
+        reject(new Error(`下载失败，状态码: ${res.statusCode}`));
+        return;
+      }
+
+      const chunks = [];
+      res.on('data', (chunk) => {
+        chunks.push(chunk);
+      });
+
+      res.on('end', () => {
+        resolve(Buffer.concat(chunks));
+      });
+    }).on('error', (err) => {
+      reject(err);
+    });
+  });
+}
+
+/**
  * 处理 CSS 内容，将相对路径转换为绝对路径
  */
 function processCssContent(cssContent, baseUrl) {
@@ -93,6 +132,90 @@ function processCssContent(cssContent, baseUrl) {
       return match;
     }
   });
+}
+
+/**
+ * 下载字体文件并替换 CSS 中的 URL
+ */
+async function downloadFontsAndProcessCss(cssContent, options = {}) {
+  const { outputDir = 'public/fonts', publicPath = '/fonts/' } = options;
+  
+  // 提取所有字体文件 URL（匹配 woff2, woff, ttf, eot, svg 等格式）
+  const fontUrlRegex = /url\(['"]?((?:https?:)?\/\/[^'")\s]+\.(?:woff2|woff|ttf|eot|svg)(?:\?[^'")\s]*)?)['"]?\)/g;
+  const fontUrls = [];
+  let match;
+  
+  while ((match = fontUrlRegex.exec(cssContent)) !== null) {
+    const url = match[1];
+    if (url && !fontUrls.includes(url)) {
+      fontUrls.push(url);
+    }
+  }
+  
+  if (fontUrls.length === 0) {
+    return cssContent;
+  }
+  
+  console.log(`   找到 ${fontUrls.length} 个字体文件，开始下载...`);
+  
+  // 创建字体目录
+  try {
+    mkdirSync(outputDir, { recursive: true });
+  } catch (e) {
+    // 目录已存在，忽略错误
+  }
+  
+  // 下载字体文件
+  const urlMap = new Map(); // 原始 URL -> 本地路径
+  
+  for (let i = 0; i < fontUrls.length; i++) {
+    let url = fontUrls[i];
+    
+    try {
+      // 处理 // 开头的 URL
+      if (url.startsWith('//')) {
+        url = 'https:' + url;
+      }
+      
+      // 提取文件扩展名
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      const ext = pathname.match(/\.(woff2|woff|ttf|eot|svg)$/i)?.[1] || 'woff2';
+      
+      // 使用 URL 的 hash 生成唯一文件名
+      const hash = crypto.createHash('md5').update(url).digest('hex').slice(0, 8);
+      const fileName = `iconfont-${hash}.${ext}`;
+      const filePath = join(outputDir, fileName);
+      
+      console.log(`   下载字体 ${i + 1}/${fontUrls.length}: ${fileName}`);
+      
+      // 下载字体文件
+      const buffer = await downloadBinaryFile(url);
+      writeFileSync(filePath, buffer);
+      
+      // 记录映射关系（注意：去除 https: 前缀，保留 // 开头的格式）
+      const originalUrl = fontUrls[i];
+      urlMap.set(originalUrl, publicPath + fileName);
+      
+      console.log(`   ✓ 已保存: ${filePath} (${(buffer.length / 1024).toFixed(2)} KB)`);
+    } catch (error) {
+      console.warn(`   ⚠️  字体下载失败: ${url}`, error.message);
+      // 如果下载失败，保留原始 URL
+    }
+  }
+  
+  // 替换 CSS 中的 URL
+  let processedCss = cssContent;
+  for (const [originalUrl, localPath] of urlMap.entries()) {
+    // 需要转义特殊字符用于正则表达式
+    const escapedUrl = originalUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`url\\(['"]?${escapedUrl}['"]?\\)`, 'g');
+    processedCss = processedCss.replace(regex, `url('${localPath}')`);
+  }
+  
+  console.log(`   ✅ 字体文件下载完成，已替换 ${urlMap.size} 个 URL`);
+  
+  return processedCss;
 }
 
 /**
@@ -110,8 +233,9 @@ export default function vitePluginIconfont(options = {}) {
     },
 
     async config(userConfig, { mode, command }) {
-      // 只在生产环境构建时下载
-      if (command !== 'build' || mode === 'development') {
+      // 只在 build 命令时下载 CSS
+      // 注意：不管是什么 mode，只要是 build 就下载，让用户可以灵活控制
+      if (command !== 'build') {
         return;
       }
 
@@ -143,10 +267,23 @@ export default function vitePluginIconfont(options = {}) {
         console.log(`   URL: ${url}`);
         
         const downloaded = await downloadFile(url);
-        cssContent = processCssContent(downloaded, url);
+        let processedCss = processCssContent(downloaded, url);
         
         console.log(`✅ [vite-plugin-iconfont] CSS 下载成功！`);
-        console.log(`   大小: ${(cssContent.length / 1024).toFixed(2)} KB\n`);
+        console.log(`   大小: ${(processedCss.length / 1024).toFixed(2)} KB`);
+
+        // 下载字体文件（如果配置了 downloadFonts）
+        if (options.downloadFonts !== false) {
+          console.log(`\n🔤 [vite-plugin-iconfont] 开始下载字体文件...`);
+          const fontOptions = {
+            outputDir: options.fontOutputDir || join(root, 'public/fonts'),
+            publicPath: options.fontPublicPath || '/fonts/'
+          };
+          processedCss = await downloadFontsAndProcessCss(processedCss, fontOptions);
+        }
+        
+        cssContent = processedCss;
+        console.log(`\n✨ [vite-plugin-iconfont] 所有资源下载完成！\n`);
 
         // 通过 define 注入 CSS 内容
         return {
