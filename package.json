@@ -1,6 +1,6 @@
 {
   "name": "vue-iconfont-loader",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Vue插件：开发环境在线引入iconfont样式，生产环境自动下载打包",
   "main": "dist/vue-iconfont-loader.umd.js",
   "module": "dist/vue-iconfont-loader.es.js",
